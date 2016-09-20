@@ -6,7 +6,7 @@ oetsettings
 
 %% Specify settings
 MdfFName = 'C:\Projects\Research\SWAP_3Rivers\UpperCust\UpCust_refine.mdf';
-streamtubes_fname = 'streamtubes.txt';
+StreamtubesFName = 'streamtubes.txt';
 ks = 0.1;
 NoHorizTubes = 10;
 NoVertTubes = 5;

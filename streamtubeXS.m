@@ -1,6 +1,11 @@
 function [Nodes,Tubes] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, NoHorizTubes, NoVertTubes)
 %streamtubeXS Generate streamtubes for a single cross-section
-% 
+%   [Nodes,Tubes] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks,...
+%                                NoHorizTubes, NoVertTubes)
+%
+%   Richard Measures 2016
+%
+%   See also delft3d_streamtubes
 
 % QUESTIONS:
 % do I need to straighten XS?
@@ -79,28 +84,24 @@ end
 Nodes(end,:) = [TubeEdgeXYDV(end,[1,2]),0]; % Right bank
 
 % Tubes
-Tubes = cell(NoHorizTubes*NoVertTubes,1);
-TubeNo = 0;
+Tubes = cell(NoVertTubes,NoHorizTubes);
 % Left Bank Tubes
 for LayerNo = 1:NoVertTubes
-    TubeNo = TubeNo + 1;
-    Tubes{TubeNo} = [1,LayerNo+(1:2),1];
+    Tubes{LayerNo,1} = [1,LayerNo+(1:2),1];
 end
 % Middle Tubes
 for VertNo = 2:NoHorizTubes-1
     for LayerNo = 1:NoVertTubes
-        TubeNo = TubeNo + 1;
-        Tubes{TubeNo} = [(VertNo-2)*(NoVertTubes+1)+LayerNo+1,...
-                         (VertNo-1)*(NoVertTubes+1)+LayerNo+[1,2],...
-                         (VertNo-2)*(NoVertTubes+1)+LayerNo+[2,1]];
+        Tubes{LayerNo,VertNo} = [(VertNo-2)*(NoVertTubes+1)+LayerNo+1,...
+                                 (VertNo-1)*(NoVertTubes+1)+LayerNo+[1,2],...
+                                 (VertNo-2)*(NoVertTubes+1)+LayerNo+[2,1]];
     end
 end
 % Right Bank Tubes
 for LayerNo = 1:NoVertTubes
-    TubeNo = TubeNo + 1;
-    Tubes{TubeNo} = [(NoHorizTubes-2)*(NoVertTubes+1)+LayerNo+1,...
-                     (NoHorizTubes-1)*(NoVertTubes+1)+2,...
-                     (NoHorizTubes-2)*(NoVertTubes+1)+LayerNo+[2,1]];
+    Tubes{LayerNo,end} = [(NoHorizTubes-2)*(NoVertTubes+1)+LayerNo+1,...
+                          (NoHorizTubes-1)*(NoVertTubes+1)+2,...
+                          (NoHorizTubes-2)*(NoVertTubes+1)+LayerNo+[2,1]];
 end
 
 %% Plot the XS (testing purposes only)

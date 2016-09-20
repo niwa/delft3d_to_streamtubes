@@ -10,7 +10,7 @@ function plotStreamtubes(Nodes, Tubes)
 % Plot cross-sections
 figure
 for XsNo = 1:size(Tubes,2)
-    for TubeNo = 1:size(Tubes{1,XsNo},1)*size(Tubes{1,XsNo},2)
+    for TubeNo = 1:(size(Tubes{1,XsNo},1)*size(Tubes{1,XsNo},2))
         plot3(Nodes{1,XsNo}(Tubes{1,XsNo}{TubeNo},1),...
               Nodes{1,XsNo}(Tubes{1,XsNo}{TubeNo},2),...
               Nodes{1,XsNo}(Tubes{1,XsNo}{TubeNo},3),'b-')

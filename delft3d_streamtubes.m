@@ -2,9 +2,12 @@ function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, StreamtubesFName, ks, No
 %DELFT3D_STREAMTUBES convert delft3D results to streamtubes
 %   Detailed explanation goes here
 
-%% Set filenames if not provided
-%############### TO DO ################
 
+%############### TO DO ################
+% - Set filenames if not provided
+% - Move flow stuff out so this function only processes a single flow - this
+%   will make it much more generally applicable.
+% - Pass H rather than MdfName
 
 
 %% Set options if not provided
@@ -129,5 +132,11 @@ end
 
 %% Write out streamtubes file
 
+% Loop through flows
+for FlowNo = 1:NWanted
+    Flow = WantedFlows(FlowNo);
+    writeStreamtubes(Nodes, Tubes, StreamtubesFName, Flow, ks)
+end
 
+end
 
