@@ -25,7 +25,9 @@ function [Nodes, Tubes] = delft3d_multiflows2streamtubes(MdfFName, ...
 %         same folder. If not supplied a user dialog box allows manual 
 %         input.
 %       StreamtubesFName = String specifying filename of output streamtubes
-%         file. If not supplied a user dialog box allows manual input.
+%         file. If not supplied a user dialog box allows manual input. Note
+%         flow information is apended to the filename to distunguish
+%         between the different flows in the range.
 %       ks = roughness height in m. This must be manually input rather than
 %         read from the model at the moment. Has a default value of 0.1 if
 %         not supplied.
@@ -97,13 +99,27 @@ BdyTS = bct_io('READ', fullfile(ModelPath, MDF.keywords.filbct));
 H = vs_use(fullfile(ModelPath,['trim-',ModelName,'.dat']));
 T = vs_time(H);
 
-%% Identify times at the end of a stationary flow period and associated flow
+%% Identify output times matching ends of stationary flow periods
+
+% Identify the timeseries inflow boundary condition
+NoOfTotDisBdy = 0;
+for ii = 1:BdyTS.NTables
+    if strcmp(BdyTS.Table(ii).Parameter(2).Name(1:15),'total discharge');
+        NoOfTotDisBdy = NoOfTotDisBdy + 1;
+        InBdyNo = ii;
+    end
+end
+if NoOfTotDisBdy ~= 1
+    error('Too many total discharge boundaries for program to cope!')
+end
+
+% Identify times at the end of a stationary flow period and associated flow
 NFlows = 0;
-for ii = 2:size(BdyTS.Table.Data,1)
-    if BdyTS.Table.Data(ii,2) == BdyTS.Table.Data(ii-1,2)
+for ii = 2:size(BdyTS.Table(InBdyNo).Data,1)
+    if BdyTS.Table(InBdyNo).Data(ii,2) == BdyTS.Table(InBdyNo).Data(ii-1,2)
         NFlows = NFlows+1;
-        StationaryTimes(NFlows,1) = BdyTS.Table.Data(ii,1);
-        StationaryFlows(NFlows,1) = BdyTS.Table.Data(ii,2);
+        StationaryTimes(NFlows,1) = BdyTS.Table(InBdyNo).Data(ii,1);
+        StationaryFlows(NFlows,1) = BdyTS.Table(InBdyNo).Data(ii,2);
     end
 end
 

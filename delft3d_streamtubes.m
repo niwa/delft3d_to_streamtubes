@@ -148,8 +148,8 @@ clear U1 V1
 
 %% Build streamtubes
 
-SelectedXs = [1:CellsPerXs:size(Depth,1),size(Depth,1)+1];
-NoOfXs = size(SelectedXs,2);
+SelectedXs = [1:CellsPerXs:size(Depth,2)-1,size(Depth,2)];
+NoOfXs = size(SelectedXs,1);
 
 Nodes = cell(NoOfXs,1);
 Tubes = cell(NoOfXs,1);
@@ -163,7 +163,7 @@ for XsNo = SelectedXs
     XS_Y     = Ycor(:,XsNo);
     XS_Vel   = Vel(:,XsNo);
     XS_Depth = Depth(:,XsNo);
-    [Nodes{XsCount},Tubes{XsCount},Flows(XsCount)] = ...
+    [Nodes{XsCount,1},Tubes{XsCount,1},Flows(XsCount,1)] = ...
         streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, ...
                      NoHorizTubes, NoVertTubes);
 end
