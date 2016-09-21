@@ -7,9 +7,10 @@ function writeStreamtubes(Nodes, Tubes, OutFName, Flow, ks)
 %   See also delft3d_streamtubes
 
 %% Extract some basic parameters
-NoOfXs     = size(Nodes,2);
+NoOfXs     = size(Nodes,1);
 NoOfVerts  = size(Tubes{1,1},2);
 NoOfLayers = size(Tubes{1,1},1);
+NoOfNodes  = size(Nodes{1,1},1);
 
 %% Flexibility to account for either single or variable ks
 if length(ks) == 1
@@ -31,13 +32,13 @@ for XsNo = 1:NoOfXs
     fprintf(FID, '%-7.5f ',ks);
     fprintf(FID, '\n');
     % Nodes
-    for NodeNo = 1:size(Nodes{1,XsNo},1)
-        fprintf(FID, '%-7i %-7.2f %-7.2f %-7.6f\n', NodeNo, Nodes{1,XsNo}(NodeNo,:));
+    for NodeNo = 1:NoOfNodes
+        fprintf(FID, '%-7i %-7.2f %-7.2f %-7.6f\n', NodeNo, Nodes{XsNo,1}(NodeNo,:));
     end
     % Tubes
     for VertNo = 1:NoOfVerts
         for LayerNo = 1:NoOfLayers
-            fprintf(FID, '%-7i ',Tubes{1,XsNo}{LayerNo,VertNo});
+            fprintf(FID, '%-7i ',Tubes{XsNo,1}{LayerNo,VertNo});
             fprintf(FID, '\n');
         end
     end

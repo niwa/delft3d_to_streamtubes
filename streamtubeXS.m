@@ -1,7 +1,7 @@
-function [Nodes,Tubes] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, NoHorizTubes, NoVertTubes)
+function [Nodes,Tubes,TotalFlow] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, NoHorizTubes, NoVertTubes)
 %streamtubeXS Generate streamtubes for a single cross-section
-%   [Nodes,Tubes] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks,...
-%                                NoHorizTubes, NoVertTubes)
+%   [Nodes,Tubes,TotalFlow] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth,...
+%                                          ks, NoHorizTubes, NoVertTubes)
 %
 %   Richard Measures 2016
 %
@@ -10,10 +10,6 @@ function [Nodes,Tubes] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, NoHorizT
 % QUESTIONS:
 % do I need to straighten XS?
 % what if there are islands! (can/should there be more than 4 points defining a tube?)
-% what if there is no velocity in an edge cell?
-% what if there is depth at the edge?
-% edge effects - should channel edge be at cell centre or cell edge? (maybe i need to import edge elevations...?)
-% does it matter what order the tubes are numbered in?
 % should number of tubes change with flow (i.e. they're all a bit bunched at low flows!)
 
 %% First, some tidying of the input data
@@ -49,7 +45,7 @@ end
 
 TubeEdgePos = interp1(CumFlowOfFlowingEdges,...
                       find(FlowingEdges),...
-                      (TotalFlow/NoHorizTubes)*(0:NoHorizTubes)');
+                      [0,(TotalFlow/NoHorizTubes)*(1:NoHorizTubes-1),TotalFlow]');
 
 TubeEdgeXYDV = [interp1([XS_X,XS_Y], TubeEdgePos),...
                 interp1([XS_Depth(1)  , XS_Vel(1)  ;...
@@ -94,7 +90,7 @@ for VertNo = 2:NoHorizTubes-1
     for LayerNo = 1:NoVertTubes
         Tubes{LayerNo,VertNo} = [(VertNo-2)*(NoVertTubes+1)+LayerNo+1,...
                                  (VertNo-1)*(NoVertTubes+1)+LayerNo+[1,2],...
-                                 (VertNo-2)*(NoVertTubes+1)+LayerNo+[2,1]];
+                                 (VertNo-2)*(NoVertTubes+1)+LayerNo+2];
     end
 end
 % Right Bank Tubes

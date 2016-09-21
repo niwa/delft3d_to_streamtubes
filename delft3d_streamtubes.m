@@ -1,16 +1,70 @@
-function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, StreamtubesFName, ks, NoHorizTubes, NoVertTubes, CellsPerXs)
+function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, StreamtubesFName, ks, NoHorizTubes, NoVertTubes, CellsPerXs)
 %DELFT3D_STREAMTUBES convert delft3D results to streamtubes
-%   Detailed explanation goes here
+%   [Nodes, Tubes] = ...
+%       delft3d_streamtubes(MdfFName, OutputTimeID, StreamtubesFName, ...
+%                           ks, NoHorizTubes, NoVertTubes, CellsPerXs)
+%
+%   Inputs:
+%       MdfFname = String specifying filename (inc path if required) of 
+%         delft3d model definition file (*.mdf). Note it is assumed model 
+%         results are named consistently with this file and located in the 
+%         same folder. If not supplied a user dialog box allows manual 
+%         input.
+%       OutputTimeID = Integer refering to the timestep of the trim file
+%         from which results should be extracted. Default is the last
+%         timestep in the trim file.
+%       StreamtubesFName = String specifying filename of output streamtubes
+%         file. If not supplied a user dialog box allows manual input.
+%       ks = roughness height in m. This must be manually input rather than
+%         read from the model at the moment. Has a default value of 0.1 if
+%         not supplied.
+%       NoHorizTubes = Integer value specifying the number of tubes across 
+%         the width of the river. Default value = 10.
+%       NoVertTubes = Integer value specifying the number of layers of 
+%         tubes in each vertical. Default value = 5.
+%       CellsPerXs = Integer value specifying the number of delft3D cells
+%         between each streamtubes cross-section. Default value = 2.
+%
+%   Outputs:
+%       Nodes = cell array with size = [No_of_cross-sections,1] where each
+%         cell is a matrix with size = [No_of_nodes,3] representing stream 
+%         tube nodes at a single cross-section. Each row of the matrix 
+%         represents 1 node, with the 3 columns specifying X, Y and Z
+%         coordinates of the node (Z = depth below water surface).
+%       Tubes = cell array with size = [No_of_cross-sections,1] where each
+%         cell is a cell array with size = [NoVertTubes,NoHorizTubes]
+%         representing the nodes associated with each tube at each
+%         cross-section.
+%
+%   Richard Measures 2016
+%
+%   See also streamtubeXS delft3d_multiflows2streamtubes
 
+%% ############### TO DO ################
+% - Improve calculation of depth at cell faces taking into account dpsopt
+%   and dpuopt... confusing!
+% - Deal with spatially varying roughness and get roughness from model
 
-%############### TO DO ################
-% - Set filenames if not provided
-% - Move flow stuff out so this function only processes a single flow - this
-%   will make it much more generally applicable.
-% - Pass H rather than MdfName
+%% Get File names if not supplied
+if ~exist('MdfFName','var')
+    [MdfFName,FilePath] = uigetfile('*.mdf','Select the delft3d model definition file');
+    if isequal(MdfFName,0)
+        error('User selected Cancel')
+    end
+    MdfFName = fullfile(FilePath,MdfFName);
+    clear FilePath
+end
 
+if ~exist('StreamtubesFName','var')
+    [StreamtubesFName,FilePath] = uiputfile('*.txt','Select file for streamtubes output', 'Streamtubes.txt');
+    if isequal(StreamtubesFName,0)
+        error('User selected Cancel')
+    end
+    StreamtubesFName = fullfile(FilePath,StreamtubesFName);
+    clear FilePath
+end
 
-%% Set options if not provided
+%% Set defaults if inputs not provided
 if ~exist('NoHorizTubes','var')
     NoHorizTubes = 10;
 end
@@ -20,8 +74,13 @@ end
 if ~exist('CellsPerXs','var')
     CellsPerXs = 2;
 end
+if ~exist('ks','var') % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    warning('Setting ks to default value of 0.1m')
+    ks = 0.1;
+end
 
 %% Read in model details
+
 % model setup file (*.mdf)
 MDF = delft3d_io_mdf('read' , MdfFName);
 [ModelPath,MdfFName,~] = fileparts(MdfFName);
@@ -29,114 +88,91 @@ MDF = delft3d_io_mdf('read' , MdfFName);
 % model grid
 Grid = delft3d_io_grd('read',fullfile(ModelPath,MDF.keywords.filcco));
 
-% flowTS
-BdyTS = bct_io('READ', fullfile(ModelPath, MDF.keywords.filbct));
-
 % results file
 H = vs_use(fullfile(ModelPath,['trim-',MdfFName,'.dat']));
 T = vs_time(H);
 
-%% Identify times at the end of a stationary flow period and associated flow
-NFlows = 0;
-for ii = 2:size(BdyTS.Table.Data,1)
-    if BdyTS.Table.Data(ii,2) == BdyTS.Table.Data(ii-1,2)
-        NFlows = NFlows+1;
-        StationaryTimes(NFlows,1) = BdyTS.Table.Data(ii,1);
-        StationaryFlows(NFlows,1) = BdyTS.Table.Data(ii,2);
-    end
-end
-
-% Identify output times matching ends of stationary flow periods
-NWanted = 0;
-for ii = 1:size(T.t,1)
-    if sum(StationaryTimes < T.t(ii)/T.tunit+1 & StationaryTimes > T.t(ii)/T.tunit-1) == 1
-        NWanted = NWanted + 1;
-        WantedTimes(NWanted,1) = ii;
-        WantedFlows(NWanted,1) = StationaryFlows(StationaryTimes < T.t(ii)/T.tunit+1 & StationaryTimes > T.t(ii)/T.tunit-1);
-    end
-end
-
 %% Read model results
-% Get depth at specified times
+
+% Set default output time if not provided
+if ~exist('OutputTimeID','var')
+    OutputTimeID = T.nt_loaded;
+end
+
+% Get depth at specified time
 S0 = vs_get(H,'map-const','DPS0',{2:Grid.nmax-1,2:Grid.mmax-1},'quiet');
-WL = vs_get(H,'map-series',{WantedTimes},'S1',{2:Grid.nmax-1,2:Grid.mmax-1},'quiet');
-Depth = cellfun(@(v) (v+S0),WL,'uniformoutput',false);
-for ii = 1:length(Depth);
-    Depth{ii}(isnan(Grid.cen.y)) = NaN;
-    Depth{ii}(Depth{ii}<MDF.keywords.dryflc) = 0;
-end;
+WL = vs_get(H,'map-series',{OutputTimeID},'S1',{2:Grid.nmax-1,2:Grid.mmax-1},'quiet');
+Depth = S0 + WL;
+Depth(isnan(Grid.cen.y)) = NaN;
+Depth(Depth<MDF.keywords.dryflc) = 0;
 clear S0 WL
 
 % Get depth averaged velocity
-U1 = vs_get(H,'map-series',{WantedTimes},'U1',{2:Grid.nmax-1,1:Grid.mmax-1,1},'quiet');
-V1 = vs_get(H,'map-series',{WantedTimes},'V1',{1:Grid.nmax-1,2:Grid.mmax-1,1},'quiet');
+U1 = vs_get(H,'map-series',{OutputTimeID},'U1',{2:Grid.nmax-1,1:Grid.mmax-1,1},'quiet');
+V1 = vs_get(H,'map-series',{OutputTimeID},'V1',{1:Grid.nmax-1,2:Grid.mmax-1,1},'quiet');
 
 % Checking I'm importing the right areas of the grid!
-%KFU = vs_get(H,'map-series',{WantedTimes},'KFU',{2:Grid.nmax-1,1:Grid.mmax-1},'quiet');
-%KFV = vs_get(H,'map-series',{WantedTimes},'KFV',{1:Grid.nmax-1,2:Grid.mmax-1},'quiet');
+%KFU = vs_get(H,'map-series',{OutputTimeID},'KFU',{2:Grid.nmax-1,1:Grid.mmax-1},'quiet');
+%KFV = vs_get(H,'map-series',{OutputTimeID},'KFV',{1:Grid.nmax-1,2:Grid.mmax-1},'quiet');
 
 %% Identify dominant flow direction and prepare grids for processing
-if abs(mean(mean(U1{end}))) > abs(mean(mean(V1{end})))
+
+if abs(mean(mean(U1))) > abs(mean(mean(V1)))
     % M direction dominant (use fliplr so processing is from Left to Right bank)
-    Vel = cellfun(@fliplr,U1,'UniformOutput',false);
-    Depth = cellfun(@fliplr,Depth,'UniformOutput',false);
-    Xcor = fliplr(Grid.cor.x);
-    Ycor = fliplr(Grid.cor.y);
+    Vel   = fliplr(U1);
+    Depth = fliplr(Depth);
+    Xcor  = fliplr(Grid.cor.x);
+    Ycor  = fliplr(Grid.cor.y);
 else
     % N direction dominant (so transpose, fliplr not necessary)
-    Vel = cellfun(@transpose,V1,'UniformOutput',false);
-    Depth = cellfun(@transpose,Depth,'UniformOutput',false);
-    Xcor = Grid.cor.x';
-    Ycor = Grid.cor.y';
+    Vel   = V1';
+    Depth = Depth';
+    Xcor  = Grid.cor.x';
+    Ycor  = Grid.cor.y';
 end
 
-if mean(mean(Vel{end})) < 0
-    % flow in negative direction so flip to process from upstream to downstream
-    Vel = cellfun(@(v) -flipud(v),Vel,'UniformOutput',false);
-    Depth = cellfun(@flipud,Depth,'UniformOutput',false);
-    Xcor = flipud(Xcor);
-    Ycor = flipud(Ycor);
+if mean(mean(Vel)) < 0
+    % flow in negative direction so flipud to process from upstream to downstream
+    Vel   = -flipud(Vel);
+    Depth = flipud(Depth);
+    Xcor  = flipud(Xcor);
+    Ycor  = flipud(Ycor);
 end
 
 % convert depths to cell faces
-for FlowNo = 1:NWanted
-    Depth{FlowNo} = [Depth{FlowNo}(:,1),Depth{FlowNo},Depth{FlowNo}(:,end)];
-    Depth{FlowNo} = (Depth{FlowNo}(:,1:end-1) + Depth{FlowNo}(:,2:end)) /2;
-end
+Depth = [Depth(:,1),Depth,Depth(:,end)];
+Depth = (Depth(:,1:end-1) + Depth(:,2:end)) /2;
 
 % Tidy up
 clear U1 V1
 
-
 %% Build streamtubes
-SelectedXs = [1:CellsPerXs:size(Depth{1},1),size(Depth{1},1)+1];
+
+SelectedXs = [1:CellsPerXs:size(Depth,1),size(Depth,1)+1];
 NoOfXs = size(SelectedXs,2);
 
-Nodes = cell(NWanted,NoOfXs);
-Tubes = cell(NWanted,NoOfXs);
+Nodes = cell(NoOfXs,1);
+Tubes = cell(NoOfXs,1);
+Flows = nan(NoOfXs,1);
 
-% Loop through flows
-for FlowNo = 1:NWanted
-    % Loop through cross-sections
-    XsCount = 0;
-    for XsNo = SelectedXs
-        XsCount = XsCount+1;
-        XS_X     = Xcor(:,XsNo);
-        XS_Y     = Ycor(:,XsNo);
-        XS_Vel   = Vel{FlowNo}(:,XsNo);
-        XS_Depth = Depth{FlowNo}(:,XsNo);
-        [Nodes{FlowNo,XsCount},Tubes{FlowNo,XsCount}] = ...
-            streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, NoHorizTubes, NoVertTubes);
-    end
+% Loop through cross-sections
+XsCount = 0;
+for XsNo = SelectedXs
+    XsCount = XsCount+1;
+    XS_X     = Xcor(:,XsNo);
+    XS_Y     = Ycor(:,XsNo);
+    XS_Vel   = Vel(:,XsNo);
+    XS_Depth = Depth(:,XsNo);
+    [Nodes{XsCount},Tubes{XsCount},Flows(XsCount)] = ...
+        streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, ...
+                     NoHorizTubes, NoVertTubes);
 end
+clear XS_X XS_Y XS_Vel XS_Depth XS_Count
 
 %% Write out streamtubes file
 
-% Loop through flows
-for FlowNo = 1:NWanted
-    Flow = WantedFlows(FlowNo);
-    writeStreamtubes(Nodes, Tubes, StreamtubesFName, Flow, ks)
-end
+MeanFlow = mean(Flows);
+writeStreamtubes(Nodes, Tubes, StreamtubesFName, MeanFlow, ks)
 
 end
 
