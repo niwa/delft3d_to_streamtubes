@@ -120,13 +120,13 @@ V1 = vs_get(H,'map-series',{OutputTimeID},'V1',{1:Grid.nmax-1,2:Grid.mmax-1,1},'
 %% Identify dominant flow direction and prepare grids for processing
 
 if abs(mean(mean(U1))) > abs(mean(mean(V1)))
-    % M direction dominant (use fliplr so processing is from Left to Right bank)
-    Vel   = fliplr(U1);
-    Depth = fliplr(Depth);
-    Xcor  = fliplr(Grid.cor.x);
-    Ycor  = fliplr(Grid.cor.y);
+    % M direction dominant (use flipud so processing is from Left to Right bank)
+    Vel   = flipud(U1);
+    Depth = flipud(Depth);
+    Xcor  = flipud(Grid.cor.x);
+    Ycor  = flipud(Grid.cor.y);
 else
-    % N direction dominant (so transpose, fliplr not necessary)
+    % N direction dominant (so transpose, flipud not necessary)
     Vel   = V1';
     Depth = Depth';
     Xcor  = Grid.cor.x';
@@ -134,7 +134,7 @@ else
 end
 
 if mean(mean(Vel)) < 0
-    % flow in negative direction so flipud to process from upstream to downstream
+    % flow in negative direction so fliplr to process from upstream to downstream
     Vel   = -flipud(Vel);
     Depth = flipud(Depth);
     Xcor  = flipud(Xcor);

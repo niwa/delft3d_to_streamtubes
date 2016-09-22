@@ -21,6 +21,7 @@ end
 FID=fopen(OutFName,'w');
 
 %% Write header info
+fprintf(FID, 'Drift Model Output\r\n');
 fprintf(FID, 'number of x-secs: %i\r\n', NoOfXs);
 fprintf(FID, 'number of flow tubes: %i\r\n', NoOfVerts);
 fprintf(FID, 'number of VertTubes: %i\r\n', NoOfLayers);
@@ -33,7 +34,7 @@ for XsNo = 1:NoOfXs
     fprintf(FID, '\r\n');
     % Nodes
     for NodeNo = 1:NoOfNodes
-        fprintf(FID, '%-7i %-7.2f %-7.2f %-7.6f\r\n', NodeNo, Nodes{XsNo,1}(NodeNo,:));
+        fprintf(FID, '%-7i %-7.2f %-7.2f % -7.6f\r\n', NodeNo, Nodes{XsNo,1}(NodeNo,:));
     end
     % Tubes
     for VertNo = 1:NoOfVerts

@@ -5,7 +5,7 @@ function FigureH = plotStreamtubes(Nodes, Tubes)
 %
 %   Richard Measures 2016
 %   
-%   See also delft3d_streamtubes streamtubeXS
+%   See also plotStreamtubes2d delft3d_streamtubes streamtubeXS
 
 FigureH = figure;
 
