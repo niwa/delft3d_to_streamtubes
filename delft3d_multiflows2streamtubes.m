@@ -147,7 +147,8 @@ for FlowNo = 1:NWanted
     
     [Nodes{FlowNo,1}, Tubes{FlowNo,1}] = ...
         delft3d_streamtubes(MdfFName, WantedTimes(FlowNo), OutFullFile, ...
-                            ks, NoHorizTubes, NoVertTubes, CellsPerXs);
+                            ks, NoHorizTubes, NoVertTubes, CellsPerXs, ...
+                            Flow);
 end
 
 

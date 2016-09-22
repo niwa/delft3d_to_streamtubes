@@ -1,4 +1,4 @@
-function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, StreamtubesFName, ks, NoHorizTubes, NoVertTubes, CellsPerXs)
+function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, StreamtubesFName, ks, NoHorizTubes, NoVertTubes, CellsPerXs, TotalFlow)
 %DELFT3D_STREAMTUBES convert delft3D results to streamtubes
 %   [Nodes, Tubes] = ...
 %       delft3d_streamtubes(MdfFName, OutputTimeID, StreamtubesFName, ...
@@ -19,11 +19,13 @@ function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, Streamtube
 %         read from the model at the moment. Has a default value of 0.1 if
 %         not supplied.
 %       NoHorizTubes = Integer value specifying the number of tubes across 
-%         the width of the river. Default value = 10.
+%         the width of the river. Default value = 20.
 %       NoVertTubes = Integer value specifying the number of layers of 
 %         tubes in each vertical. Default value = 5.
 %       CellsPerXs = Integer value specifying the number of delft3D cells
 %         between each streamtubes cross-section. Default value = 2.
+%       TotalFlow = Optional user specifed total flow. If not supplied
+%         calculated mean cross-section flow is used instead.
 %
 %   Outputs:
 %       Nodes = cell array with size = [No_of_cross-sections,1] where each
@@ -66,7 +68,7 @@ end
 
 %% Set defaults if inputs not provided
 if ~exist('NoHorizTubes','var')
-    NoHorizTubes = 10;
+    NoHorizTubes = 20;
 end
 if ~exist('NoVertTubes','var')
     NoVertTubes = 5;
@@ -172,7 +174,14 @@ clear XS_X XS_Y XS_Vel XS_Depth XS_Count
 %% Write out streamtubes file
 
 MeanFlow = mean(Flows);
-writeStreamtubes(Nodes, Tubes, StreamtubesFName, MeanFlow, ks)
+if ~exist('TotalFlow','var')
+    TotalFlow = MeanFlow;
+else
+    if (TotalFlow > (MeanFlow * 1.1)) || (TotalFlow < (MeanFlow * 0.9))
+        warning('TotalFlow specified (%.3f m^3/s) is significantly different to meanflow at cross sections (%.3f m^3/s)',TotalFlow,MeanFlow)
+    end
+end
+writeStreamtubes(Nodes, Tubes, StreamtubesFName, TotalFlow, ks)
 
 end
 

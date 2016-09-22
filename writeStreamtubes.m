@@ -21,25 +21,25 @@ end
 FID=fopen(OutFName,'w');
 
 %% Write header info
-fprintf(FID, 'number of x-secs: %i\n', NoOfXs);
-fprintf(FID, 'number of flow tubes: %i\n', NoOfVerts);
-fprintf(FID, 'number of VertTubes: %i\n', NoOfLayers);
+fprintf(FID, 'number of x-secs: %i\r\n', NoOfXs);
+fprintf(FID, 'number of flow tubes: %i\r\n', NoOfVerts);
+fprintf(FID, 'number of VertTubes: %i\r\n', NoOfLayers);
 
 %% Write cross-section data
 for XsNo = 1:NoOfXs
     % Cross-section header
-    fprintf(FID, '%-7i %1.5f\n',XsNo,Flow);
+    fprintf(FID, '%-7i %1.5f\r\n',XsNo,Flow);
     fprintf(FID, '%-7.5f ',ks);
-    fprintf(FID, '\n');
+    fprintf(FID, '\r\n');
     % Nodes
     for NodeNo = 1:NoOfNodes
-        fprintf(FID, '%-7i %-7.2f %-7.2f %-7.6f\n', NodeNo, Nodes{XsNo,1}(NodeNo,:));
+        fprintf(FID, '%-7i %-7.2f %-7.2f %-7.6f\r\n', NodeNo, Nodes{XsNo,1}(NodeNo,:));
     end
     % Tubes
     for VertNo = 1:NoOfVerts
         for LayerNo = 1:NoOfLayers
             fprintf(FID, '%-7i ',Tubes{XsNo,1}{LayerNo,VertNo});
-            fprintf(FID, '\n');
+            fprintf(FID, '\r\n');
         end
     end
 end
