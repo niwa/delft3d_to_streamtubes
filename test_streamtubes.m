@@ -1,12 +1,13 @@
-%% Test delft3D streamtubes function
+%% Run delft3D streamtubes function
 
 %% Add Open Earth Matlab Toolbox 
 addpath C:\Projects\OpenEarth\matlab\
 oetsettings ('quiet')
 
 %% Specify settings
-%MdfFName = 'C:\Projects\Research\SWAP_3Rivers\UpperCust\UpCust_refine.mdf';
-MdfFName = 'S:\measuresrj\Oreti\Oreti_RampedQ_highflow.mdf';
+%MdfFName = 'F:\Delft3dProjects\Oreti\Oreti_RampedQ.mdf';
+MdfFName = 'F:\Delft3dProjects\Oreti\Oreti_RampedQ_highflow.mdf';
+
 StreamtubesFName = 'OretiStreamtubes.txt';
 ks = 0.1;
 NoHorizTubes = 20;
