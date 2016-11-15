@@ -3,7 +3,7 @@ function FigureH = plotStreamtubes(Nodes, Tubes)
 %   plotStreamtubes(Nodes, Tubes) plots streamtubes defined by Nodes and
 %   Tubes.
 %
-%   Richard Measures 2016
+%   Richard Measures, NIWA, 2016
 %   
 %   See also plotStreamtubes2d delft3d_streamtubes streamtubeXS
 

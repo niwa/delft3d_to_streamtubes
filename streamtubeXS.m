@@ -3,7 +3,7 @@ function [Nodes,Tubes,TotalFlow] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks
 %   [Nodes,Tubes,TotalFlow] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth,...
 %                                          ks, NoHorizTubes, NoVertTubes)
 %
-%   Richard Measures 2016
+%   Richard Measures, NIWA, 2016
 %
 %   See also delft3d_streamtubes
 

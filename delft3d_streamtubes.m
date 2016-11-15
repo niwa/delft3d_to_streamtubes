@@ -38,7 +38,7 @@ function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, Streamtube
 %         representing the nodes associated with each tube at each
 %         cross-section.
 %
-%   Richard Measures 2016
+%   Richard Measures, NIWA, 2016
 %
 %   See also streamtubeXS delft3d_multiflows2streamtubes
 

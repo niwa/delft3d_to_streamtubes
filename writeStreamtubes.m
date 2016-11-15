@@ -2,7 +2,7 @@ function writeStreamtubes(Nodes, Tubes, OutFName, Flow, ks)
 %WRITESTREAMTUBES output streamtubes to text file
 %   writeStreamtubes(Nodes, Tubes, OutFName)
 %
-%   Richard Measures 2016
+%   Richard Measures, NIWA, 2016
 %
 %   See also delft3d_streamtubes
 
