@@ -19,7 +19,7 @@ Plotting finctions used to test streamtubes generation
  - plotStreamtubes2d.m
  - plotStreamtubes.m
  
-Example/test function applying functions to oretiu model results
+Example/test function applying functions to oreti model results
  - test_streamtubes.m
  
 See comments in individual files for more info.

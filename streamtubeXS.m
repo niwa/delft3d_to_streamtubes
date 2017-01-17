@@ -14,16 +14,17 @@ function [Nodes,Tubes,TotalFlow] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks
 
 %% First, some tidying of the input data
 
-% Remove any negative velocities (I'm not sure what effect this would have!)
-XS_Vel(XS_Vel<0) = 0;
+% Remove any negative or nan velocities
+XS_Vel(XS_Vel<0|isnan(XS_Vel)) = 0;
 
-% Remove any negative depths
-XS_Depth(XS_Depth<0) = 0;
+% Remove any negative or nan depths
+XS_Depth(XS_Depth<0|isnan(XS_Depth)) = 0;
 
 %% Calcuate some basic cross-section properties
 
 % Calculate cell width
 CellWidth = sqrt((XS_X(1:end-1)-XS_X(2:end)).^2 + (XS_Y(1:end-1)-XS_Y(2:end)).^2);
+CellWidth(isnan(CellWidth)) = 0;
 
 % Calculate cell flow
 CellFlow = XS_Vel .* XS_Depth .* CellWidth;
