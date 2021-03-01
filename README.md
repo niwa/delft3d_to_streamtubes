@@ -3,7 +3,7 @@ Matlab functions for converting Delft3D model output to the streamtubes format
 required for input into the Cawthron NREI model. This software was developed 
 with funding from NIWA's Environmental Flows research program.
 
-##Contents:
+## Contents:
 The main streamtubes program:
 * `delft3d_streamtubes.m`
   main function for generating streamtubes from delft3d results
