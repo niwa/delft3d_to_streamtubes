@@ -5,12 +5,8 @@ addpath C:\Projects\OpenEarth\matlab\
 oetsettings ('quiet')
 
 %% Specify settings
-%MdfFName = 'F:\Delft3dProjects\Oreti\Oreti_RampedQ.mdf';
-%MdfFName = 'F:\Delft3dProjects\Oreti\Oreti_RampedQ_highflow.mdf';
-MdfFName = 'E:\Delft3dProjects\Clutha_Luggate\Clutha_Luggate_RampedFlow.mdf';
-
-%StreamtubesFName = 'OretiStreamtubes.txt';
-StreamtubesFName = 'CluthaStreamtubes.txt';
+MdfFName = 'C:\MyDirectory\MyDelft3DModelDefinitionFile.mdf';
+StreamtubesFName = 'MyNewStreamtubes.txt';
 ks = 0.1;
 NoHorizTubes = 20;
 NoVertTubes = 5;
@@ -23,5 +19,8 @@ CellsPerXs = 2;
 %    Be carefull - if there are lots of tubes/cross-sections a 3d plot can 
 %    run out of memory.
 FlowNo = 11;
-%plotStreamtubes(Nodes{FlowNo,1},Tubes{FlowNo,1});
+
+% 3D plot:
+plotStreamtubes(Nodes{FlowNo,1},Tubes{FlowNo,1});
+% 2D plot:
 plotStreamtubes2d(Nodes{FlowNo,1},Tubes{FlowNo,1});
