@@ -1,16 +1,13 @@
-function [Nodes,Tubes,TotalFlow] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, NoHorizTubes, NoVertTubes)
+function [Nodes,Tubes,TotalFlow,Mask] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, NoHorizTubes, ...
+                                                     NoVertTubes, MaxDryCellsInTube)
 %streamtubeXS Generate streamtubes for a single cross-section
 %   [Nodes,Tubes,TotalFlow] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth,...
 %                                          ks, NoHorizTubes, NoVertTubes)
 %
-%   Richard Measures, NIWA, 2016
+%   Richard Measures, Gu Stecca, NIWA
 %
 %   See also delft3d_streamtubes
 
-% QUESTIONS:
-% do I need to straighten XS?
-% what if there are islands! (can/should there be more than 4 points defining a tube?)
-% should number of tubes change with flow (i.e. they're all a bit bunched at low flows!)
 
 %% First, some tidying of the input data
 
@@ -19,6 +16,7 @@ XS_Vel(XS_Vel<0|isnan(XS_Vel)) = 0;
 
 % Remove any negative or nan depths
 XS_Depth(XS_Depth<0|isnan(XS_Depth)) = 0;
+WetCells = XS_Depth>0;
 
 %% Calcuate some basic cross-section properties
 
@@ -33,8 +31,7 @@ TotalFlow = sum(CellFlow);
 
 % Find Banks
 FlowingCells = CellFlow > 0;
-FlowingEdges = [0;FlowingCells]|[FlowingCells;0];
-
+FlowingEdges = [false;FlowingCells]|[FlowingCells;false];
 %% Divide XS horizontally into streamtubes
 
 % 1st make sure CumulativeFlow increases so we can use it in interp1
@@ -48,12 +45,22 @@ TubeEdgePos = interp1(CumFlowOfFlowingEdges,...
                       find(FlowingEdges),...
                       [0,(TotalFlow/NoHorizTubes)*(1:NoHorizTubes-1),TotalFlow]');
 
-TubeEdgeXYDV = [interp1([XS_X,XS_Y], TubeEdgePos),...
+TubeEdgeXYDV = [interp1([XS_X, XS_Y], TubeEdgePos),...
                 interp1([XS_Depth(1)  , XS_Vel(1)  ;...
                          XS_Depth     , XS_Vel     ;...
                          XS_Depth(end), XS_Vel(end)],...
                         (TubeEdgePos+0.5))];
 
+TubeEdgePos_L= floor(TubeEdgePos(1:end-1));
+TubeEdgePos_R= ceil(TubeEdgePos(2:end))-1;
+
+MaskTubes = ones(size(TubeEdgeXYDV, 1)-1, 1);
+ 
+for TubeNo = 1:size(MaskTubes, 1)
+    NDry = sum(WetCells(TubeEdgePos_L:TubeEdgePos_R))
+    MaskTubes(TubeNo) = NDry;
+end
+ 
 %% Divide XS vertically into streamtubes
 
 % Calculate vertical divisions
@@ -82,6 +89,7 @@ Nodes(end,:) = [TubeEdgeXYDV(end,[1,2]),0]; % Right bank
 
 % Tubes
 Tubes = cell(NoVertTubes,NoHorizTubes);
+Mask = cell(NoVertTubes,NoHorizTubes);
 % Left Bank Tubes
 for LayerNo = 1:NoVertTubes
     Tubes{LayerNo,1} = [1,LayerNo+(1:2),1];
@@ -100,6 +108,13 @@ for LayerNo = 1:NoVertTubes
                           (NoHorizTubes-1)*(NoVertTubes+1)+2,...
                           (NoHorizTubes-2)*(NoVertTubes+1)+LayerNo+[2,1]];
 end
+
+for VertNo = 1:NoHorizTubes
+    for LayerNo = 1:NoVertTubes
+        Mask{LayerNo,VertNo} = MaskTubes(VertNo,1);
+    end
+end
+
 
 %% Plot the XS (testing purposes only)
 

@@ -1,8 +1,8 @@
-function writeStreamtubes(Nodes, Tubes, OutFName, Flow, ks)
+function writeStreamtubes(Nodes, Tubes, OutFName, Flow, ks, Mask, OutFNameMask)
 %WRITESTREAMTUBES output streamtubes to text file
 %   writeStreamtubes(Nodes, Tubes, OutFName)
 %
-%   Richard Measures, NIWA, 2016
+%   Richard Measures, Gu Stecca, NIWA
 %
 %   See also delft3d_streamtubes
 
@@ -47,6 +47,34 @@ end
 
 %% Close file
 fclose(FID);
+
+
+if(exist(Mask))
+    
+    FIDM=fopen(OutFNameMask,'w');
+    
+    %% Write header info
+    fprintf(FIDM, 'Drift Model Output\r\n');
+    fprintf(FIDM, 'number of x-secs: %i\r\n', NoOfXs);
+    fprintf(FIDM, 'number of flow tubes: %i\r\n', NoOfVerts);
+    fprintf(FIDM, 'number of VertTubes: %i\r\n', NoOfLayers);
+    
+    %% Write cross-section data
+    for XsNo = 1:NoOfXs
+        % Cross-section header
+        fprintf(FIDM, '%-7i %1.5f\r\n',XsNo,Flow);
+        % Masks
+        for VertNo = 1:NoOfVerts
+            for LayerNo = 1:NoOfLayers
+                fprintf(FIDM, '%-7i ',Mask{XsNo,1}{LayerNo,VertNo});
+                fprintf(FIDM, '\r\n');
+            end
+        end
+    end
+    fclose(FIDM);
+    
+end
+
 
 end
 

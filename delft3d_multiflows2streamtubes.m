@@ -1,8 +1,10 @@
-function [Nodes, Tubes] = delft3d_multiflows2streamtubes(MdfFName, ...
-    StreamtubesFName, ks, NoHorizTubes, NoVertTubes, CellsPerXs)
+function [Nodes, Tubes, Mask] = delft3d_multiflows2streamtubes(MdfFName, ...
+    StreamtubesFName, MaskFName, ks, NoHorizTubes, NoVertTubes, ...
+    CellsPerXs, MaxDryCellsInTube)
 %DELFT3D_MULTIFLOWS2STREAMTUBES delft3d_streamtubes for a ramping flows
-%   [Nodes, Tubes] = delft3d_multiflows2streamtubes(MdfFName, ...
-%       StreamtubesFName, ks, NoHorizTubes, NoVertTubes, CellsPerXs)
+%   [Nodes, Tubes, Mask] = delft3d_multiflows2streamtubes(MdfFName, ...
+%       StreamtubesFName, MaskFName, ks, NoHorizTubes, NoVertTubes, ...
+        CellsPerXs, MaxDryCellsInTube)
 %   
 %   This function applies delft3d_streamtubes to every stable flow in a
 %   ramping (stepped) flow timeseries e.g.
@@ -28,6 +30,10 @@ function [Nodes, Tubes] = delft3d_multiflows2streamtubes(MdfFName, ...
 %         file. If not supplied a user dialog box allows manual input. Note
 %         flow information is apended to the filename to distunguish
 %         between the different flows in the range.
+%       MaskFName = String specifying filename of output streamtubes mask
+%         file. If not supplied a user dialog box allows manual input. Note
+%         flow information is apended to the filename to distunguish
+%         between the different flows in the range.
 %       ks = roughness height in m. This must be manually input rather than
 %         read from the model at the moment. Has a default value of 0.1 if
 %         not supplied.
@@ -37,6 +43,10 @@ function [Nodes, Tubes] = delft3d_multiflows2streamtubes(MdfFName, ...
 %         tubes in each vertical. Default value = 5.
 %       CellsPerXs = Integer value specifying the number of delft3D cells
 %         between each streamtubes cross-section. Default value = 2.
+%       MaxDryCellsInTube = Optional user specified threshold number of dry 
+%         cells across the width of any given streamtube. Streamtubes with 
+%         more dry cells than this (i.e. streamtubes which span islands)
+%         will be identified in the mask layer. Default value = 3.
 %
 %   Outputs:
 %       Nodes = cell array with size = [No_of_cross-sections,1] where each
@@ -48,13 +58,16 @@ function [Nodes, Tubes] = delft3d_multiflows2streamtubes(MdfFName, ...
 %         cell is a cell array with size = [NoVertTubes,NoHorizTubes]
 %         representing the nodes associated with each tube at each
 %         cross-section.
+%       Mask = cell array with size = [No_of_cross-sections,1] where each
+%         cell is a matrix with size = [No_of_nodes,3] (same as Nodes).
+%           Contains 1 or 0 values indicating active and inactive Nodes. 
 %
-%   Richard Measures, NIWA, 2016
+%   Richard Measures, Gu Stecca, NIWA
 %
 %   See also delft3d_streamtubes
 
 %% Get File names if not supplied
-if ~exist('MdfFName','var')
+if (~exist('MdfFName','var')||isempty(MdfFName))
     [MdfFName,FilePath] = uigetfile('*.mdf','Select the delft3d model definition file');
     if isequal(MdfFName,0)
         error('User selected Cancel')
@@ -63,7 +76,7 @@ if ~exist('MdfFName','var')
     clear FilePath
 end
 
-if ~exist('StreamtubesFName','var')
+if (~exist('StreamtubesFName','var')||isempty(StreamtubesFName))
     [StreamtubesFName,FilePath] = uiputfile('*.txt','Select file for streamtubes output', 'Streamtubes.txt');
     if isequal(StreamtubesFName,0)
         error('User selected Cancel')
@@ -72,19 +85,33 @@ if ~exist('StreamtubesFName','var')
     clear FilePath
 end
 
-%% Set defaults if inputs not provided
-if ~exist('NoHorizTubes','var')
-    NoHorizTubes = 10;
+if (~exist('MaskFName','var')||isempty(MaskFName))
+    [MaskFName,FilePath] = uiputfile('*.txt','Select file for streamtubes mask output', 'Mask.txt');
+    if isequal(MaskFName,0)
+        error('User selected Cancel')
+    end
+    MaskFName = fullfile(FilePath,MaskFName);
+    clear FilePath
 end
-if ~exist('NoVertTubes','var')
+
+%% Set defaults if inputs not provided
+if (~exist('NoHorizTubes','var')||isempty(NoHorizTubes))
+    NoHorizTubes = 20;
+end
+if (~exist('NoVertTubes','var')||isempty(NoVertTubes))
     NoVertTubes = 5;
 end
-if ~exist('CellsPerXs','var')
+if (~exist('CellsPerXs','var')||isempty(CellsPerXs))
     CellsPerXs = 2;
 end
-if ~exist('ks','var') % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+if (~exist('ks','var')||isempty(ks))
+    % TODO add functionality to read in ks from MDF file
+    % TODO add functionality to handle spatially varying roughness
     warning('Setting ks to default value of 0.1m')
     ks = 0.1;
+end
+if (~exist('MaxDryCellsInTube','var')||isempty(MaxDryCellsInTube))
+    MaxDryCellsInTube=3
 end
 
 %% Read in model details
@@ -136,19 +163,23 @@ end
 %% Loop over wanted times and generate streamtubes for each one
 
 [OutPath,OutName,OutExt] = fileparts(StreamtubesFName);
+[MaskPath,MaskName,MaskExt] = fileparts(MaskFName);
 Nodes = cell(NWanted,1);
 Tubes = cell(NWanted,1);
+Masks = cell(NWanted,1);
 
 % Loop through flows
 for FlowNo = 1:NWanted
     Flow = WantedFlows(FlowNo);
     OutFullFile = strrep(sprintf('%s_Flow=%07.3f',OutName, Flow),'.','-');
     OutFullFile = fullfile(OutPath,[OutFullFile,OutExt]);
+    MaskFullFile = strrep(sprintf('%s_Flow=%07.3f',MaskName, Flow),'.','-');
+    MaskFullFile = fullfile(MaskPath,[MaskFullFile,MaskExt]);
     
-    [Nodes{FlowNo,1}, Tubes{FlowNo,1}] = ...
+    [Nodes{FlowNo,1}, Tubes{FlowNo,1}, Masks{FlowNo,1}] = ...
         delft3d_streamtubes(MdfFName, WantedTimes(FlowNo), OutFullFile, ...
-                            ks, NoHorizTubes, NoVertTubes, CellsPerXs, ...
-                            Flow);
+                            MaskFullFile, ks, NoHorizTubes, NoVertTubes, ...
+                            CellsPerXs, Flow, MaxDryCellsInTube);
 end
 
 

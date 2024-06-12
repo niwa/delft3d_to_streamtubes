@@ -1,8 +1,11 @@
-function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, StreamtubesFName, ks, NoHorizTubes, NoVertTubes, CellsPerXs, TotalFlow)
+function [Nodes, Tubes, Mask] = delft3d_streamtubes(MdfFName, ...
+    OutputTimeID, StreamtubesFName, MaskFName, ks, NoHorizTubes, ...
+    NoVertTubes, CellsPerXs, TotalFlow, MaxDryCellsInTube)
 %DELFT3D_STREAMTUBES convert delft3D results to streamtubes
-%   [Nodes, Tubes] = ...
+%   [Nodes, Tubes, Mask] = ...
 %       delft3d_streamtubes(MdfFName, OutputTimeID, StreamtubesFName, ...
-%                           ks, NoHorizTubes, NoVertTubes, CellsPerXs)
+%                           MaskFName, ks, NoHorizTubes, NoVertTubes, ...
+                            CellsPerXs, TotalFlow, MaxDryCellsInTube)
 %
 %   Inputs:
 %       MdfFname = String specifying filename (inc path if required) of 
@@ -15,6 +18,8 @@ function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, Streamtube
 %         timestep in the trim file.
 %       StreamtubesFName = String specifying filename of output streamtubes
 %         file. If not supplied a user dialog box allows manual input.
+%       MaskFName = String specifying filename of output streamtubes mask
+%         file. If not supplied a user dialog box allows manual input.
 %       ks = roughness height in m. This must be manually input rather than
 %         read from the model at the moment. Has a default value of 0.1 if
 %         not supplied.
@@ -26,6 +31,10 @@ function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, Streamtube
 %         between each streamtubes cross-section. Default value = 2.
 %       TotalFlow = Optional user specifed total flow. If not supplied
 %         calculated mean cross-section flow is used instead.
+%       MaxDryCellsInTube = Optional user specified threshold number of dry 
+%         cells across the width of any given streamtube. Streamtubes with 
+%         more dry cells than this (i.e. streamtubes which span islands)
+%         will be identified in the mask layer. Default value = 3.
 %
 %   Outputs:
 %       Nodes = cell array with size = [No_of_cross-sections,1] where each
@@ -37,8 +46,10 @@ function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, Streamtube
 %         cell is a cell array with size = [NoVertTubes,NoHorizTubes]
 %         representing the nodes associated with each tube at each
 %         cross-section.
-%
-%   Richard Measures, NIWA, 2016
+%       Mask = cell array with size = [No_of_cross-sections,1] where each
+%         cell is a matrix with size = [No_of_nodes,3] (same as Nodes).
+%           Contains 1 or 0 values indicating active and inactive Nodes. 
+%   Richard Measures, Gu Stecca, NIWA
 %
 %   See also streamtubeXS delft3d_multiflows2streamtubes
 
@@ -48,7 +59,7 @@ function [Nodes, Tubes] = delft3d_streamtubes(MdfFName, OutputTimeID, Streamtube
 % - Deal with spatially varying roughness and get roughness from model
 
 %% Get File names if not supplied
-if ~exist('MdfFName','var')
+if (~exist('MdfFName','var')||isempty(MdfFName))
     [MdfFName,FilePath] = uigetfile('*.mdf','Select the delft3d model definition file');
     if isequal(MdfFName,0)
         error('User selected Cancel')
@@ -57,7 +68,7 @@ if ~exist('MdfFName','var')
     clear FilePath
 end
 
-if ~exist('StreamtubesFName','var')
+if (~exist('StreamtubesFName','var')||isempty(StreamtubesFName))
     [StreamtubesFName,FilePath] = uiputfile('*.txt','Select file for streamtubes output', 'Streamtubes.txt');
     if isequal(StreamtubesFName,0)
         error('User selected Cancel')
@@ -66,19 +77,33 @@ if ~exist('StreamtubesFName','var')
     clear FilePath
 end
 
+if (~exist('MaskFName','var')||isempty(MaskFName))
+    [MaskFName,FilePath] = uiputfile('*.txt','Select file for streamtubes mask output', 'Mask.txt');
+    if isequal(MaskFName,0)
+        error('User selected Cancel')
+    end
+    MaskFName = fullfile(FilePath,MaskFName);
+    clear FilePath
+end
+
 %% Set defaults if inputs not provided
-if ~exist('NoHorizTubes','var')
+if (~exist('NoHorizTubes','var')||isempty(NoHorizTubes))
     NoHorizTubes = 20;
 end
-if ~exist('NoVertTubes','var')
+if (~exist('NoVertTubes','var')||isempty(NoVertTubes))
     NoVertTubes = 5;
 end
-if ~exist('CellsPerXs','var')
+if (~exist('CellsPerXs','var')||isempty(CellsPerXs))
     CellsPerXs = 2;
 end
-if ~exist('ks','var') % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+if (~exist('ks','var')||isempty(ks))
+    % TODO add functionality to read in ks from MDF file
+    % TODO add functionality to handle spatially varying roughness
     warning('Setting ks to default value of 0.1m')
     ks = 0.1;
+end
+if (~exist('MaxDryCellsInTube','var')||isempty(MaxDryCellsInTube))
+    MaxDryCellsInTube=3
 end
 
 %% Read in model details
@@ -97,17 +122,21 @@ T = vs_time(H);
 %% Read model results
 
 % Set default output time if not provided
-if ~exist('OutputTimeID','var')
+if (~exist('OutputTimeID','var')||isempty(OutputTimeID))
     OutputTimeID = T.nt_loaded;
 end
 
 % Get depth at specified time
 S0 = vs_get(H,'map-const','DPS0',{2:Grid.nmax-1,2:Grid.mmax-1},'quiet');
 WL = vs_get(H,'map-series',{OutputTimeID},'S1',{2:Grid.nmax-1,2:Grid.mmax-1},'quiet');
+
 Depth = S0 + WL;
+
 Depth(isnan(Grid.cen.y)) = NaN;
-Depth(Depth<MDF.keywords.dryflc) = 0;
+DepthThreshold = MDF.keywords.dryflc
+Depth(Depth<DepthThreshold) = 0;
 clear S0 WL
+
 
 % Get depth averaged velocity
 U1 = vs_get(H,'map-series',{OutputTimeID},'U1',{2:Grid.nmax-1,1:Grid.mmax-1,1},'quiet');
@@ -155,6 +184,7 @@ NoOfXs = size(SelectedXs,1);
 
 Nodes = cell(NoOfXs,1);
 Tubes = cell(NoOfXs,1);
+Mask = cell(NoOfXs,1);
 Flows = nan(NoOfXs,1);
 
 % Loop through cross-sections
@@ -165,23 +195,25 @@ for XsNo = SelectedXs
     XS_Y     = Ycor(:,XsNo);
     XS_Vel   = Vel(:,XsNo);
     XS_Depth = Depth(:,XsNo);
-    [Nodes{XsCount,1},Tubes{XsCount,1},Flows(XsCount,1)] = ...
+    XS_Mask = Mask_Depth(:,XsNo);
+  
+    [Nodes{XsCount,1},Tubes{XsCount,1},Flows(XsCount,1), Mask{XsCount,1}] = ...
         streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, ...
-                     NoHorizTubes, NoVertTubes);
+                     NoHorizTubes, NoVertTubes, MaxDryCellsInTube);
 end
-clear XS_X XS_Y XS_Vel XS_Depth XS_Count
+clear XS_X XS_Y XS_Vel XS_Depth XS_Count Mask_Depth XS_Mask
 
 %% Write out streamtubes file
 
 MeanFlow = mean(Flows);
-if ~exist('TotalFlow','var')
+if (~exist('TotalFlow','var')||isempty(TotalFlow))
     TotalFlow = MeanFlow;
 else
     if (TotalFlow > (MeanFlow * 1.1)) || (TotalFlow < (MeanFlow * 0.9))
         warning('TotalFlow specified (%.3f m^3/s) is significantly different to meanflow at cross sections (%.3f m^3/s)',TotalFlow,MeanFlow)
     end
 end
-writeStreamtubes(Nodes, Tubes, StreamtubesFName, TotalFlow, ks)
+writeStreamtubes(Nodes, Tubes, StreamtubesFName, TotalFlow, ks, Mask, MaskFName)
 
 end
 
