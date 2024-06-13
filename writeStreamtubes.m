@@ -49,7 +49,7 @@ end
 fclose(FID);
 
 
-if(exist(Mask))
+if iscell(Mask)
     
     FIDM=fopen(OutFNameMask,'w');
     

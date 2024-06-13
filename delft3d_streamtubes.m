@@ -5,7 +5,7 @@ function [Nodes, Tubes, Mask] = delft3d_streamtubes(MdfFName, ...
 %   [Nodes, Tubes, Mask] = ...
 %       delft3d_streamtubes(MdfFName, OutputTimeID, StreamtubesFName, ...
 %                           MaskFName, ks, NoHorizTubes, NoVertTubes, ...
-                            CellsPerXs, TotalFlow, MaxDryCellsInTube)
+%                             CellsPerXs, TotalFlow, MaxDryCellsInTube)
 %
 %   Inputs:
 %       MdfFname = String specifying filename (inc path if required) of 
@@ -20,9 +20,13 @@ function [Nodes, Tubes, Mask] = delft3d_streamtubes(MdfFName, ...
 %         file. If not supplied a user dialog box allows manual input.
 %       MaskFName = String specifying filename of output streamtubes mask
 %         file. If not supplied a user dialog box allows manual input.
-%       ks = roughness height in m. This must be manually input rather than
-%         read from the model at the moment. Has a default value of 0.1 if
-%         not supplied.
+%       ks = roughness height in m. This can be specified manually. If no
+%           value is specified (that is, [] must be entered as an input
+%           value), then it is read from the model (check if it is set as a
+%           spatially constant value in MDF.keywords.ccofu or as a
+%           spatially varying set in the .rgh file). If none of them are
+%           found (which in principle cannot be), then the default value
+%           ks = 0.1.
 %       NoHorizTubes = Integer value specifying the number of tubes across 
 %         the width of the river. Default value = 20.
 %       NoVertTubes = Integer value specifying the number of layers of 
@@ -86,26 +90,6 @@ if (~exist('MaskFName','var')||isempty(MaskFName))
     clear FilePath
 end
 
-%% Set defaults if inputs not provided
-if (~exist('NoHorizTubes','var')||isempty(NoHorizTubes))
-    NoHorizTubes = 20;
-end
-if (~exist('NoVertTubes','var')||isempty(NoVertTubes))
-    NoVertTubes = 5;
-end
-if (~exist('CellsPerXs','var')||isempty(CellsPerXs))
-    CellsPerXs = 2;
-end
-if (~exist('ks','var')||isempty(ks))
-    % TODO add functionality to read in ks from MDF file
-    % TODO add functionality to handle spatially varying roughness
-    warning('Setting ks to default value of 0.1m')
-    ks = 0.1;
-end
-if (~exist('MaxDryCellsInTube','var')||isempty(MaxDryCellsInTube))
-    MaxDryCellsInTube=3
-end
-
 %% Read in model details
 
 % model setup file (*.mdf)
@@ -118,6 +102,69 @@ Grid = delft3d_io_grd('read',fullfile(ModelPath,MDF.keywords.filcco));
 % results file
 H = vs_use(fullfile(ModelPath,['trim-',MdfFName,'.dat']));
 T = vs_time(H);
+
+%% Set defaults if inputs not provided
+if (~exist('NoHorizTubes','var')||isempty(NoHorizTubes))
+    NoHorizTubes = 20;
+end
+if (~exist('NoVertTubes','var')||isempty(NoVertTubes))
+    NoVertTubes = 5;
+end
+if (~exist('CellsPerXs','var')||isempty(CellsPerXs))
+    CellsPerXs = 2;
+end
+if (~exist('ks','var')||isempty(ks))
+    if isfield(MDF.keywords, 'ccofu') && ~isempty(MDF.keywords.ccofu) && isnumeric(MDF.keywords.ccofu)
+            ks = (MDF.keywords.ccofu * 8.1 * 9.81^0.5)^6 * ones(MDF.keywords.mnkmax(2)-2, MDF.keywords.mnkmax(1)-1);
+            disp('roughness value is read from .mdf file.')
+    elseif isfield(MDF.keywords, 'filrgh')
+            disp('.rgh file exists, roughness values are read from .rgh file.');
+
+            % Split the ModelPath into its components
+            modelPathComponents = split(ModelPath, filesep);
+            % Split the relative path to .rgh file into its components
+            relativePathComponents = split(MDF.keywords.filrgh, filesep);
+            
+            % Traverse the relative path and adjust the model path components
+            for i = 1:length(relativePathComponents)
+                if strcmp(relativePathComponents{i}, '..')
+                    % Go up one directory level
+                    modelPathComponents(end) = [];
+                else
+                    % Append the relative path component to the model path
+                    modelPathComponents{end + 1} = relativePathComponents{i};
+                end
+            end
+            % Construct the full path
+            RghPath = fullfile(modelPathComponents{:});
+            Manning_rgf = dlmread(RghPath);
+            if ismatrix(Manning_rgf) && size(Manning_rgf, 1) > 1 && size(Manning_rgf, 2) > 1
+                disp('ks is a 2D matrix.');
+            end
+            a=1; b=1;
+            for i = 1:(size(Manning_rgf, 1)/2) % we use only the u component of Manning
+                for j = 1:size(Manning_rgf, 2)
+                    if Manning_rgf(i,j) ==0
+                        continue
+                    end
+                    ks(a,b) = Manning_rgf(i,j);
+                    if mod(b,MDF.keywords.mnkmax(1)) == 0
+                        a=a+1; b = 1;
+                    else b=b+1;
+                    end
+                end
+            end
+            ks = (ks .* 8.1 * 9.81^0.5).^6;
+            ks = ks(2:end-1, 2:end-1);
+            ks = [ks(:,1),ks,ks(:,end)];
+            ks = (ks(:,1:end-1) + ks(:,2:end)) /2;
+    else ks = 0.1 * ones(MDF.keywords.mnkmax(2)-2, MDF.keywords.mnkmax(1)-1);
+        disp('setting ks to default value of 0.1m.');
+    end
+end
+if (~exist('MaxDryCellsInTube','var')||isempty(MaxDryCellsInTube))
+    MaxDryCellsInTube=3
+end
 
 %% Read model results
 
@@ -137,6 +184,10 @@ DepthThreshold = MDF.keywords.dryflc
 Depth(Depth<DepthThreshold) = 0;
 clear S0 WL
 
+% Remove disconnected ponds of water
+WetConnected = bwareaopen(Depth>=DepthThreshold, 10000, 4);
+Depth(WetConnected==0) = 0;
+Depth(Depth<=0) = 0;
 
 % Get depth averaged velocity
 U1 = vs_get(H,'map-series',{OutputTimeID},'U1',{2:Grid.nmax-1,1:Grid.mmax-1,1},'quiet');
@@ -189,19 +240,20 @@ Flows = nan(NoOfXs,1);
 
 % Loop through cross-sections
 XsCount = 0;
-for XsNo = SelectedXs
+for XsNo = SelectedXs;
     XsCount = XsCount+1;
     XS_X     = Xcor(:,XsNo);
     XS_Y     = Ycor(:,XsNo);
     XS_Vel   = Vel(:,XsNo);
     XS_Depth = Depth(:,XsNo);
-    XS_Mask = Mask_Depth(:,XsNo);
+    XS_ks = ks(:,XsNo);
+%     XS_Mask = Mask_Depth(:,XsNo);
   
     [Nodes{XsCount,1},Tubes{XsCount,1},Flows(XsCount,1), Mask{XsCount,1}] = ...
-        streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, ...
+        streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, XS_ks, ...
                      NoHorizTubes, NoVertTubes, MaxDryCellsInTube);
 end
-clear XS_X XS_Y XS_Vel XS_Depth XS_Count Mask_Depth XS_Mask
+clear XS_X XS_Y XS_Vel XS_Depth XS_Count Mask_Depth XS_Mask XS_ks ks
 
 %% Write out streamtubes file
 

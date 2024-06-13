@@ -1,8 +1,8 @@
-function [Nodes,Tubes,TotalFlow,Mask] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, ks, NoHorizTubes, ...
+function [Nodes,Tubes,TotalFlow,Mask] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, XS_ks, NoHorizTubes, ...
                                                      NoVertTubes, MaxDryCellsInTube)
 %streamtubeXS Generate streamtubes for a single cross-section
 %   [Nodes,Tubes,TotalFlow] = streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth,...
-%                                          ks, NoHorizTubes, NoVertTubes)
+%                                          XS_ks, NoHorizTubes, NoVertTubes)
 %
 %   Richard Measures, Gu Stecca, NIWA
 %
@@ -45,19 +45,19 @@ TubeEdgePos = interp1(CumFlowOfFlowingEdges,...
                       find(FlowingEdges),...
                       [0,(TotalFlow/NoHorizTubes)*(1:NoHorizTubes-1),TotalFlow]');
 
-TubeEdgeXYDV = [interp1([XS_X, XS_Y], TubeEdgePos),...
-                interp1([XS_Depth(1)  , XS_Vel(1)  ;...
-                         XS_Depth     , XS_Vel     ;...
-                         XS_Depth(end), XS_Vel(end)],...
+TubeEdgeXYDVks = [interp1([XS_X, XS_Y], TubeEdgePos),...
+                interp1([XS_Depth(1)  , XS_Vel(1)  , XS_ks(1)  ;...
+                         XS_Depth     , XS_Vel     , XS_ks     ;...
+                         XS_Depth(end), XS_Vel(end), XS_ks(end)],...
                         (TubeEdgePos+0.5))];
 
 TubeEdgePos_L= floor(TubeEdgePos(1:end-1));
 TubeEdgePos_R= ceil(TubeEdgePos(2:end))-1;
 
-MaskTubes = ones(size(TubeEdgeXYDV, 1)-1, 1);
+MaskTubes = ones(size(TubeEdgeXYDVks, 1)-1, 1);
  
 for TubeNo = 1:size(MaskTubes, 1)
-    NDry = sum(WetCells(TubeEdgePos_L:TubeEdgePos_R))
+    NDry = sum(WetCells(TubeEdgePos_L:TubeEdgePos_R));
     MaskTubes(TubeNo) = NDry;
 end
  
@@ -67,10 +67,10 @@ end
 NoBins = 100; % hardcoded!
 TubeEdgeZ = zeros(NoHorizTubes+1,NoVertTubes+1);
 for EdgeNo = 2:NoHorizTubes;
-    zBins = [1e-6,(1:NoBins)*(TubeEdgeXYDV(EdgeNo,3)/NoBins)]';
-    IntegratedVel = log(11*zBins/ks).*zBins;
+    zBins = [1e-6,(1:NoBins)*(TubeEdgeXYDVks(EdgeNo,3)/NoBins)]';
+    IntegratedVel = log(11*zBins/TubeEdgeXYDVks(EdgeNo,5)).*zBins;
     TubeEdgeZ(EdgeNo,2:end-1) = interp1(IntegratedVel,zBins,(1:NoVertTubes-1)*IntegratedVel(end)/NoVertTubes);
-    TubeEdgeZ(EdgeNo,1:end-1) = -TubeEdgeXYDV(EdgeNo,3) + TubeEdgeZ(EdgeNo,1:end-1);
+    TubeEdgeZ(EdgeNo,1:end-1) = -TubeEdgeXYDVks(EdgeNo,3) + TubeEdgeZ(EdgeNo,1:end-1);
 end
 
 %% Convert to nodes and tubes (polygons)
@@ -80,12 +80,12 @@ end
 %                = (EdgeNo-2)*(NoVertTubes+1) + (2:(NoVertTubes+2))   for intermediate verticals (EdgeNo = 2:NoHorizTubes)
 %                = (NoHorizTubes-1) * (NoVertTubes+1) + 2             for Right Bank (EdgeNo = NoHorizTubes+1)
 Nodes = nan((NoHorizTubes-1) * (NoVertTubes+1) + 2, 3);
-Nodes(1,:) = [TubeEdgeXYDV(1,[1,2]),0]; % Left bank
+Nodes(1,:) = [TubeEdgeXYDVks(1,[1,2]),0]; % Left bank
 for EdgeNo = 2:NoHorizTubes;
     Nodes((EdgeNo-2)*(NoVertTubes+1) + (2:(NoVertTubes+2)), :) = ...
-        [repmat(TubeEdgeXYDV(EdgeNo,[1,2]),NoVertTubes+1,1),TubeEdgeZ(EdgeNo,:)'];
+        [repmat(TubeEdgeXYDVks(EdgeNo,[1,2]),NoVertTubes+1,1),TubeEdgeZ(EdgeNo,:)'];
 end
-Nodes(end,:) = [TubeEdgeXYDV(end,[1,2]),0]; % Right bank
+Nodes(end,:) = [TubeEdgeXYDVks(end,[1,2]),0]; % Right bank
 
 % Tubes
 Tubes = cell(NoVertTubes,NoHorizTubes);
