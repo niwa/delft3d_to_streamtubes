@@ -60,7 +60,6 @@ function [Nodes, Tubes, Mask] = delft3d_streamtubes(MdfFName, ...
 %% ############### TO DO ################
 % - Improve calculation of depth at cell faces taking into account dpsopt
 %   and dpuopt... confusing!
-% - Deal with spatially varying roughness and get roughness from model
 
 %% Get File names if not supplied
 if (~exist('MdfFName','var')||isempty(MdfFName))
@@ -115,7 +114,7 @@ if (~exist('CellsPerXs','var')||isempty(CellsPerXs))
 end
 if (~exist('ks','var')||isempty(ks))
     if isfield(MDF.keywords, 'ccofu') && ~isempty(MDF.keywords.ccofu) && isnumeric(MDF.keywords.ccofu)
-            ks = (MDF.keywords.ccofu * 8.1 * 9.81^0.5)^6 * ones(MDF.keywords.mnkmax(2)-2, MDF.keywords.mnkmax(1)-1);
+            ks = (MDF.keywords.ccofu * 8.1 * 9.81^0.5)^6 * ones(MDF.keywords.mnkmax(2)-2, MDF.keywords.mnkmax(1)-2);
             disp('roughness value is read from .mdf file.')
     elseif isfield(MDF.keywords, 'filrgh')
             disp('.rgh file exists, roughness values are read from .rgh file.');
@@ -137,6 +136,8 @@ if (~exist('ks','var')||isempty(ks))
             end
             % Construct the full path
             RghPath = fullfile(modelPathComponents{:});
+
+            % Read the spatially varying roughness file
             Manning_rgf = dlmread(RghPath);
             if ismatrix(Manning_rgf) && size(Manning_rgf, 1) > 1 && size(Manning_rgf, 2) > 1
                 disp('ks is a 2D matrix.');
@@ -156,14 +157,12 @@ if (~exist('ks','var')||isempty(ks))
             end
             ks = (ks .* 8.1 * 9.81^0.5).^6;
             ks = ks(2:end-1, 2:end-1);
-            ks = [ks(:,1),ks,ks(:,end)];
-            ks = (ks(:,1:end-1) + ks(:,2:end)) /2;
     else ks = 0.1 * ones(MDF.keywords.mnkmax(2)-2, MDF.keywords.mnkmax(1)-1);
         disp('setting ks to default value of 0.1m.');
     end
 end
 if (~exist('MaxDryCellsInTube','var')||isempty(MaxDryCellsInTube))
-    MaxDryCellsInTube=3
+    MaxDryCellsInTube=3;
 end
 
 %% Read model results
@@ -180,7 +179,7 @@ WL = vs_get(H,'map-series',{OutputTimeID},'S1',{2:Grid.nmax-1,2:Grid.mmax-1},'qu
 Depth = S0 + WL;
 
 Depth(isnan(Grid.cen.y)) = NaN;
-DepthThreshold = MDF.keywords.dryflc
+DepthThreshold = MDF.keywords.dryflc;
 Depth(Depth<DepthThreshold) = 0;
 clear S0 WL
 
@@ -203,57 +202,62 @@ if abs(mean(mean(U1))) > abs(mean(mean(V1)))
     % M direction dominant (use flipud so processing is from Left to Right bank)
     Vel   = flipud(U1);
     Depth = flipud(Depth);
+    ks = flipud(ks);
     Xcor  = flipud(Grid.cor.x);
     Ycor  = flipud(Grid.cor.y);
 else
     % N direction dominant (so transpose, flipud not necessary)
     Vel   = V1';
     Depth = Depth';
+    ks = ks';
     Xcor  = Grid.cor.x';
     Ycor  = Grid.cor.y';
 end
 
 if mean(mean(Vel)) < 0
     % flow in negative direction so fliplr to process from upstream to downstream
-    Vel   = -flipud(Vel);
-    Depth = flipud(Depth);
-    Xcor  = flipud(Xcor);
-    Ycor  = flipud(Ycor);
+    Vel   = -fliplr(Vel);
+    Depth = fliplr(Depth);
+    ks = fliplr(ks);
+    Xcor  = fliplr(Xcor);
+    Ycor  = fliplr(Ycor);
 end
 
-% convert depths to cell faces
+% convert depths and roughness to cell faces
 Depth = [Depth(:,1),Depth,Depth(:,end)];
 Depth = (Depth(:,1:end-1) + Depth(:,2:end)) /2;
+ks = [ks(:,1),ks,ks(:,end)];
+ks = (ks(:,1:end-1) + ks(:,2:end)) /2;
 
 % Tidy up
 clear U1 V1
 
 %% Build streamtubes
 
-SelectedXs = [1:CellsPerXs:size(Depth,2)-1,size(Depth,2)];
+SelectedXs = [1:CellsPerXs:size(Depth,2)-1,size(Depth,2)]';
 NoOfXs = size(SelectedXs,1);
 
 Nodes = cell(NoOfXs,1);
 Tubes = cell(NoOfXs,1);
 Mask = cell(NoOfXs,1);
 Flows = nan(NoOfXs,1);
+% ks_Node= nan(NoOfXs,1);
 
 % Loop through cross-sections
 XsCount = 0;
-for XsNo = SelectedXs;
+for XsNo = SelectedXs'
     XsCount = XsCount+1;
     XS_X     = Xcor(:,XsNo);
     XS_Y     = Ycor(:,XsNo);
     XS_Vel   = Vel(:,XsNo);
     XS_Depth = Depth(:,XsNo);
     XS_ks = ks(:,XsNo);
-%     XS_Mask = Mask_Depth(:,XsNo);
   
-    [Nodes{XsCount,1},Tubes{XsCount,1},Flows(XsCount,1), Mask{XsCount,1}] = ...
+    [Nodes{XsCount,1},Tubes{XsCount,1},Flows(XsCount,1), Mask{XsCount,1}, ks_Node{XsCount,1}] = ...
         streamtubeXS(XS_X, XS_Y, XS_Vel, XS_Depth, XS_ks, ...
                      NoHorizTubes, NoVertTubes, MaxDryCellsInTube);
 end
-clear XS_X XS_Y XS_Vel XS_Depth XS_Count Mask_Depth XS_Mask XS_ks ks
+clear XS_X XS_Y XS_Vel XS_Depth XS_Count Mask_Depth XS_Mask XS_ks
 
 %% Write out streamtubes file
 
@@ -265,7 +269,12 @@ else
         warning('TotalFlow specified (%.3f m^3/s) is significantly different to meanflow at cross sections (%.3f m^3/s)',TotalFlow,MeanFlow)
     end
 end
-writeStreamtubes(Nodes, Tubes, StreamtubesFName, TotalFlow, ks, Mask, MaskFName)
+
+plotStreamtubes2d(Nodes,Tubes,Mask);
+
+writeStreamtubes(Nodes, Tubes, StreamtubesFName, TotalFlow, ks_Node, Mask, MaskFName)
+
+clear ks StreamtubesFName TotalFlow Flows MeanFlow ks_NMode MaskFName MDF Grid Depth Vel S0 WL
 
 end
 

@@ -12,10 +12,10 @@ NoOfVerts  = size(Tubes{1,1},2);
 NoOfLayers = size(Tubes{1,1},1);
 NoOfNodes  = size(Nodes{1,1},1);
 
-%% Flexibility to account for either single or variable ks
-if length(ks) == 1
-    ks = repmat(ks,NoOfVerts+1,1);
-end
+% %% Flexibility to account for either single or variable ks
+% if all(ks(:) == ks(1,1)) == 1
+%     ks = repmat(ks(1,1),NoOfVerts+1,NoOfXs);
+% end
 
 %% Open file for write access
 FID=fopen(OutFName,'w');
@@ -30,7 +30,7 @@ fprintf(FID, 'number of VertTubes: %i\r\n', NoOfLayers);
 for XsNo = 1:NoOfXs
     % Cross-section header
     fprintf(FID, '%-7i %1.5f\r\n',XsNo,Flow);
-    fprintf(FID, '%-7.5f ',ks);
+    fprintf(FID, '%-7.5f ',ks{XsNo,1}');
     fprintf(FID, '\r\n');
     % Nodes
     for NodeNo = 1:NoOfNodes
